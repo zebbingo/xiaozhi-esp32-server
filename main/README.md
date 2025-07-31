@@ -449,6 +449,8 @@ xiaozhi-esp32-server
         *   **集中管理:** 所有配置都可以通过`manager-web`界面进行统一管理。
         *   **动态更新:** `xiaozhi-server`可以刷新其配置并重新初始化AI模块，而无需完全重启服务。
     *   `xiaozhi-server`中的`config/config_loader.py`和`config/manage_api_client.py`负责处理配置的加载、合并及从`manager-api`拉取的逻辑。
+    *   **环境变量支持:** 在`config.yaml`中可以使用`${ENV_VAR}`形式的占位符，运行时会自动从环境变量中读取对应值，从而避免在配置文件中直接暴露密钥。
+    *   **数据加密:** 本地记忆文件和上传的聊天记录会在保存或发送前使用环境变量`MEMORY_ENC_KEY`和`CHAT_LOG_KEY`指定的密钥进行AES加密，确保数据在存储端安全。
 
 2.  **`manager-api` 配置:**
     *   作为一个Spring Boot应用，其配置主要通过位于`src/main/resources`目录下的`application.properties`或`application.yml`文件进行管理。

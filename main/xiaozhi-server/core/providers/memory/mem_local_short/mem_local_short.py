@@ -4,6 +4,7 @@ import json
 import os
 import yaml
 from config.config_loader import get_project_dir
+from core.utils.crypto_utils import encrypt, decrypt
 from config.manage_api_client import save_mem_local_short
 from core.utils.util import check_model_key
 
@@ -129,19 +130,34 @@ class MemoryProvider(MemoryProviderBase):
 
         all_memory = {}
         if os.path.exists(self.memory_path):
-            with open(self.memory_path, "r", encoding="utf-8") as f:
-                all_memory = yaml.safe_load(f) or {}
+            with open(self.memory_path, "rb") as f:
+                data = f.read()
+                if data:
+                    try:
+                        data = decrypt(data, os.environ.get("MEMORY_ENC_KEY", "default_key"))
+                    except Exception:
+                        # 兼容旧的明文格式
+                        pass
+                    all_memory = yaml.safe_load(data.decode("utf-8")) or {}
         if self.role_id in all_memory:
             self.short_memory = all_memory[self.role_id]
 
     def save_memory_to_file(self):
         all_memory = {}
         if os.path.exists(self.memory_path):
-            with open(self.memory_path, "r", encoding="utf-8") as f:
-                all_memory = yaml.safe_load(f) or {}
+            with open(self.memory_path, "rb") as f:
+                data = f.read()
+                if data:
+                    try:
+                        data = decrypt(data, os.environ.get("MEMORY_ENC_KEY", "default_key"))
+                    except Exception:
+                        pass
+                    all_memory = yaml.safe_load(data.decode("utf-8")) or {}
         all_memory[self.role_id] = self.short_memory
-        with open(self.memory_path, "w", encoding="utf-8") as f:
-            yaml.dump(all_memory, f, allow_unicode=True)
+        serialized = yaml.dump(all_memory, allow_unicode=True).encode("utf-8")
+        encrypted = encrypt(serialized, os.environ.get("MEMORY_ENC_KEY", "default_key"))
+        with open(self.memory_path, "wb") as f:
+            f.write(encrypted)
 
     async def save_memory(self, msgs):
         # 打印使用的模型信息

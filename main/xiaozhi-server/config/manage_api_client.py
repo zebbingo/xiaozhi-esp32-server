@@ -1,7 +1,9 @@
 import os
 import time
 import base64
+import os
 from typing import Optional, Dict
+from core.utils.crypto_utils import encrypt
 
 import httpx
 
@@ -166,6 +168,12 @@ def report(
     if not content or not ManageApiClient._instance:
         return None
     try:
+        enc_key = os.environ.get("CHAT_LOG_KEY", "default_key")
+        enc_content = encrypt(content.encode("utf-8"), enc_key).decode("utf-8")
+        enc_audio = None
+        if audio:
+            enc_audio = encrypt(base64.b64encode(audio), enc_key).decode("utf-8")
+
         return ManageApiClient._instance._execute_request(
             "POST",
             f"/agent/chat-history/report",
@@ -173,11 +181,9 @@ def report(
                 "macAddress": mac_address,
                 "sessionId": session_id,
                 "chatType": chat_type,
-                "content": content,
+                "content": enc_content,
                 "reportTime": report_time,
-                "audioBase64": (
-                    base64.b64encode(audio).decode("utf-8") if audio else None
-                ),
+                "audioBase64": enc_audio,
             },
         )
     except Exception as e:

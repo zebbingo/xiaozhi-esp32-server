@@ -1,5 +1,6 @@
 import os
 import yaml
+import re
 from collections.abc import Mapping
 from config.manage_api_client import init_service, get_server_config, get_agent_models
 
@@ -13,6 +14,22 @@ def read_config(config_path):
     with open(config_path, "r", encoding="utf-8") as file:
         config = yaml.safe_load(file)
     return config
+
+
+_env_pattern = re.compile(r"\${([^}]+)}")
+
+
+def _substitute(value):
+    if isinstance(value, str):
+        m = _env_pattern.fullmatch(value.strip())
+        if m:
+            return os.environ.get(m.group(1), "")
+        return value
+    if isinstance(value, Mapping):
+        return {k: _substitute(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_substitute(v) for v in value]
+    return value
 
 
 def load_config():
@@ -36,6 +53,7 @@ def load_config():
     else:
         # 合并配置
         config = merge_configs(default_config, custom_config)
+    config = _substitute(config)
     # 初始化目录
     ensure_directories(config)
 
@@ -68,7 +86,7 @@ def get_config_from_api(config):
             "vision_explain": config["server"].get("vision_explain", ""),
             "auth_key": config["server"].get("auth_key", ""),
         }
-    return config_data
+    return _substitute(config_data)
 
 
 def get_private_config_from_api(config, device_id, client_id):
