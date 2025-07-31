@@ -1,4 +1,5 @@
 import asyncio
+import ssl
 import websockets
 from config.logger import setup_logging
 from core.connection import ConnectionHandler
@@ -36,9 +37,24 @@ class WebSocketServer:
         server_config = self.config["server"]
         host = server_config.get("ip", "0.0.0.0")
         port = int(server_config.get("port", 8000))
+        ssl_ctx = None
+        ssl_conf = server_config.get("ssl", {})
+        if ssl_conf.get("enabled"):
+            try:
+                ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                ssl_ctx.load_cert_chain(
+                    ssl_conf.get("certfile", "server.crt"),
+                    ssl_conf.get("keyfile", "server.key"),
+                )
+            except Exception as e:
+                self.logger.bind(tag=TAG).error(f"加载SSL证书失败: {e}")
 
         async with websockets.serve(
-            self._handle_connection, host, port, process_request=self._http_response
+            self._handle_connection,
+            host,
+            port,
+            process_request=self._http_response,
+            ssl=ssl_ctx,
         ):
             await asyncio.Future()
 

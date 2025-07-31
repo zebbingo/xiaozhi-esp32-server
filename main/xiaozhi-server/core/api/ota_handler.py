@@ -23,15 +23,17 @@ class OTAHandler(BaseHandler):
         """
         server_config = self.config["server"]
         websocket_config = server_config.get("websocket", "")
+        protocol = "wss" if server_config.get("ssl", {}).get("enabled") else "ws"
 
         if "你的" not in websocket_config:
             return websocket_config
         else:
-            return f"ws://{local_ip}:{port}/xiaozhi/v1/"
+            return f"{protocol}://{local_ip}:{port}/xiaozhi/v1/"
 
     async def handle_post(self, request):
         """处理 OTA POST 请求"""
         try:
+            await self._auth_request(request)
             data = await request.text()
             self.logger.bind(tag=TAG).debug(f"OTA请求方法: {request.method}")
             self.logger.bind(tag=TAG).debug(f"OTA请求头: {request.headers}")
@@ -79,6 +81,7 @@ class OTAHandler(BaseHandler):
     async def handle_get(self, request):
         """处理 OTA GET 请求"""
         try:
+            await self._auth_request(request)
             server_config = self.config["server"]
             local_ip = get_local_ip()
             port = int(server_config.get("port", 8000))

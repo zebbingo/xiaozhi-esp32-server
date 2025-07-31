@@ -6,6 +6,7 @@ from core.utils.util import get_vision_url, is_valid_image_file
 from core.utils.vllm import create_instance
 from config.config_loader import get_private_config_from_api
 from core.utils.auth import AuthToken
+from core.auth import AuthMiddleware, AuthenticationError
 import base64
 from typing import Tuple, Optional
 from plugins_func.register import Action
@@ -22,6 +23,7 @@ class VisionHandler:
         self.logger = setup_logging()
         # 初始化认证工具
         self.auth = AuthToken(config["server"]["auth_key"])
+        self.ws_auth = AuthMiddleware(config)
 
     def _create_error_response(self, message: str) -> dict:
         """创建统一的错误响应格式"""
@@ -40,6 +42,7 @@ class VisionHandler:
         """处理 MCP Vision POST 请求"""
         response = None  # 初始化response变量
         try:
+            await self.ws_auth.authenticate(request.headers)
             # 验证token
             is_valid, token_device_id = self._verify_auth_token(request)
             if not is_valid:
@@ -153,6 +156,7 @@ class VisionHandler:
     async def handle_get(self, request):
         """处理 MCP Vision GET 请求"""
         try:
+            await self.ws_auth.authenticate(request.headers)
             vision_explain = get_vision_url(self.config)
             if vision_explain and len(vision_explain) > 0 and "null" != vision_explain:
                 message = (
