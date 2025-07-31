@@ -81,10 +81,18 @@
 
             <!-- 保持相同的协议声明 -->
             <div style="font-size: 14px;color: #979db1;">
-              同意
-              <div style="display: inline-block;color: #5778FF;cursor: pointer;">《用户协议》</div>
-              和
-              <div style="display: inline-block;color: #5778FF;cursor: pointer;">《隐私政策》</div>
+              <template v-if="isEnglishLocale">
+                By proceeding you agree to our
+                <a href="/user-agreement-en.html" target="_blank" style="color: #5778FF;">User Agreement</a>
+                and
+                <a href="/privacy-policy-en.html" target="_blank" style="color: #5778FF;">Privacy Policy</a>
+              </template>
+              <template v-else>
+                同意
+                <a href="/user-agreement.html" target="_blank" style="color: #5778FF;">《用户协议》</a>
+                和
+                <a href="/privacy-policy.html" target="_blank" style="color: #5778FF;">《隐私政策》</a>
+              </template>
             </div>
           </div>
         </form>
@@ -114,6 +122,10 @@ export default {
       allowUserRegister: state => state.pubConfig.allowUserRegister,
       mobileAreaList: state => state.pubConfig.mobileAreaList
     }),
+    isEnglishLocale() {
+      const lang = navigator.language || navigator.userLanguage;
+      return ['en-US', 'en-GB', 'en-CA', 'en-AU'].includes(lang);
+    },
     canSendMobileCaptcha() {
       return this.countdown === 0 && validateMobile(this.form.mobile, this.form.areaCode);
     }
