@@ -12,6 +12,7 @@ Supports MCP endpoints and voiceprint recognition
 <p align="center">
 <a href="./README.md">中文</a>
 · <a href="./docs/FAQ.md">FAQ</a>
+· <a href="./docs/data-privacy.md">Data Privacy</a>
 · <a href="https://github.com/xinnan-tech/xiaozhi-esp32-server/issues">Report Issues</a>
 · <a href="./README.md#%E9%83%A8%E7%BD%B2%E6%96%87%E6%A1%A3">Deployment Docs</a>
 · <a href="https://github.com/xinnan-tech/xiaozhi-esp32-server/releases">Release Notes</a>

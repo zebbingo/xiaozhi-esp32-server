@@ -55,6 +55,12 @@ log:
   # 设置数据文件路径
   data_dir: data
 
+gdpr:
+  # 是否启用GDPR相关功能
+  enabled: false
+  # 数据保留天数，超过天数的记录会被自动清除
+  retention_days: 30
+
 # 使用完声音文件后删除文件(Delete the sound file when you are done using it)
 delete_audio: true
 # 没有语音输入多久后断开连接(秒)，默认2分钟，即120秒
