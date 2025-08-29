@@ -173,7 +173,25 @@ flowchart TD
 
 ## 10) Epics & User Stories with Acceptance Criteria
 
+### Traceability Matrix
+| FR/NFR | Epic | Stories |
+|--------|------|---------|
+| FR1 (MQTT mTLS connect) | Epic 1 – Control Plane | Story 1.1 |
+| FR2 (Scoped topics) | Epic 1 – Control Plane | Story 1.1, 1.2 |
+| FR3 (DTLS-PSK UDP) | Epic 2 – Data Plane | Story 2.1, 2.2 |
+| FR4 (WebRTC transcoding) | Epic 3 – WebRTC Bridge | Story 3.1, 3.2 |
+| FR5 (OTA update) | Epic 1 – Control Plane | Story 1.3 |
+| FR6 (Telemetry errors) | Epic 2 – Data Plane | Story 2.2, 2.3 |
+| FR7 (Parental dashboard telemetry) | Epic 4 – Security & Compliance | Story 4.3 |
+| NFR1 (Latency) | Epic 2, 3 | Stories 2.1–2.3, 3.1, 3.2 |
+| NFR2 (Reliability) | Epic 2 | Story 2.3 |
+| NFR3 (Security) | Epic 1, 2, 3, 4 | Stories 1.1, 2.1, 3.2, 4.1 |
+| NFR4 (Scalability) | Epic 5 – Observability & Ops | Stories 5.1, 5.2 |
+| NFR5 (Privacy) | Epic 4 – Security & Compliance | Story 4.2, 4.3 |
+| NFR6 (Observability) | Epic 5 – Observability & Ops | Stories 5.1–5.3 |
+
 ### Epic 1: Control Plane (MQTT)
+
 - **Story 1.1:** As a device, I can establish a secure MQTT connection with mTLS so that I am uniquely identified.
   - **Given** a valid device certificate
   - **When** the device connects to the broker
@@ -246,7 +264,7 @@ flowchart TD
 - **Story 5.3:** As a developer, I can trace a request from device→ASR→LLM→TTS with OTel.
   - **Given** tracing is enabled
   - **When** a session occurs
-  - **Then** spans show full path with <1% missing traces.*
+  - **Then** spans show full path with <1% missing traces.
 
 ---
 
