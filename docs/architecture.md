@@ -294,26 +294,51 @@ flowchart TD
 
 ## 14) PO Execution Checklist (2025-08-28 SGT)
 
-| Item                              | Status | Notes                                               | Action                                          |
-| --------------------------------- | ------ | --------------------------------------------------- | ----------------------------------------------- |
-| Background & Problem Statement    | ✅      | Clear rationale for MQTT+UDP + optional WebRTC      | —                                               |
-| Success Criteria                  | ✅      | Latency/availability targets defined                | —                                               |
-| Functional Requirements           | ✅      | FR1–FR7 captured                                    | Keep synced as scope evolves                    |
-| Non-Functional Requirements       | ✅      | Latency, reliability, security, privacy, scale      | —                                               |
-| Out of Scope                      | ✅      | Explicitly listed                                   | —                                               |
-| Architecture Overview             | ✅      | Broker, UDP ingress, WebRTC bridge                  | Link to Architecture Doc for diagrams           |
-| Security & Privacy                | ✅      | mTLS, DTLS-PSK, DTLS-SRTP; retention defaults       | Add Minimax TTS API contract (inputs/outputs)   |
-| Data Retention & DSR              | ✅      | Audio ≤14d opt-in; logs ≤90d; export/delete         | Hook dashboard endpoints to backend jobs        |
-| Dependencies                      | ⚠️     | Shard PRDs exist; inter-shard dependencies implicit | Dependency map added to Master Pack             |
-| Risks & Mitigations               | ✅      | Covered (NAT, packet loss, device limits, keys)     | —                                               |
-| Test Plan                         | ✅      | Unit/integration/load/chaos/security                | Add pass/fail gates per SLO                     |
-| Acceptance Criteria               | ✅      | Per-story Given/When/Then AC added                  | —                                               |
-| Rollout & Rollback                | ✅      | Cohort plan + `/cfg` rollback                       | Define go/no-go gates per cohort                |
-| Stakeholders & Ownership          | ✅      | Listed + milestones with owners                     | Add DRIs per milestone                          |
-| Observability                     | ✅      | Metrics/logs/traces + alert thresholds              | Add WebRTC stats export wiring                  |
-| Localization/Internationalization | ⚠️     | Not in PRD scope                                    | Confirm N/A or add locale telemetry fields      |
-| Accessibility & Safety (Kids)     | ⚠️     | Outside protocol scope                              | Link to content/safety PRD; add guardrail hooks |
-| Support/Runbooks                  | ✅      | Runbooks added                                      | Keep them updated with Ops team                 |
-| Cost & Capacity                   | ✅      | Cost guardrails defined                             | Monitor alerts & budgets                        |
-| Legal/Compliance Sign-off         | ⚠️     | Defaults set; sign-off milestone added              | Execute checkpoint before canary ramp           |
+| Item                           | Status | Notes                                               | Action                                        |
+| ------------------------------ | ------ | --------------------------------------------------- | --------------------------------------------- |
+| Background & Problem Statement | ✅      | Clear rationale for MQTT+UDP + optional WebRTC      | —                                             |
+| Success Criteria               | ✅      | Latency/availability targets defined                | —                                             |
+| Functional Requirements        | ✅      | FR1–FR7 captured                                    | Keep synced as scope evolves                  |
+| Non-Functional Requirements    | ✅      | Latency, reliability, security, privacy, scale      | —                                             |
+| Out of Scope                   | ✅      | Explicitly listed                                   | —                                             |
+| Architecture Overview          | ✅      | Broker, UDP ingress, WebRTC bridge                  | Link to Architecture Doc for diagrams         |
+| Security & Privacy             | ✅      | mTLS, DTLS-PSK, DTLS-SRTP; retention defaults       | Add Minimax TTS API contract (inputs/outputs) |
+| Data Retention & DSR           | ✅      | Audio ≤14d opt-in; logs ≤90d; export/delete         | Hook dashboard endpoints to backend jobs      |
+| Dependencies                   | ⚠️     | Shard PRDs exist; inter-shard dependencies implicit | Dependency map added to Master Pack           |
+| Risks & Mitigations            | ✅      | Covered (NAT, packet loss, device limits, keys)     | —                                             |
+| Test Plan                      | ✅      | Unit/integration/load/chaos/security                | Add pass/fail gates per SLO                   |
+| Acceptance Criteria            | ✅      | Per-story Given/When/Then AC added                 | —                                             |
+| Rollout & Rollback             | ✅      | Cohort plan + `/cfg` rollback                       | Define go/no-go gates per cohort              |
+| Stakeholders & Ownership       | ✅      | Listed + milestones with owners                     | Add DRIs per milestone                        |
+| Observability                  | ✅      | Metrics/logs/traces + alert thresholds              | Add WebRTC stats export wiring                |
+| Localization/Internationalization | ⚠️  | Not in PRD scope                                    | Confirm N/A or add locale telemetry fields    |
+| Accessibility & Safety (Kids)  | ⚠️     | Outside protocol scope                              | Link to content/safety PRD; add guardrail hooks|
+| Support/Runbooks               | ✅      | Runbooks added                                      | Keep them updated with Ops team               |
+| Cost & Capacity                | ✅      | Cost guardrails defined                             | Monitor alerts & budgets                      |
+| Legal/Compliance Sign-off      | ⚠️     | Defaults set; sign-off milestone added              | Execute checkpoint before canary ramp         |
 
+---
+
+## QA Testing Matrix with Expected Results
+
+| FR/NFR | Test Case | Owner | Expected Result | Pass/Fail Criteria |
+|--------|-----------|-------|-----------------|--------------------|
+| FR1 (MQTT mTLS connect) | Device connects with valid/invalid cert; verify broker auth | QA Firmware | Valid cert connects; invalid cert rejected | Pass if valid succeeds and invalid fails |
+| FR2 (Scoped topics) | Publish outside scope; expect ACL deny | QA Backend | Unauthorized publish denied | Pass if broker denies unauthorized topic |
+| FR3 (DTLS-PSK UDP) | Establish DTLS with valid/invalid PSK; stream audio | QA Firmware | Valid PSK succeeds; invalid PSK handshake fails | Pass if only valid PSK streams accepted |
+| FR4 (WebRTC transcoding) | Send 16kHz stream; verify 48kHz output on browser | QA Backend | Browser receives 48kHz Opus audio | Pass if browser receives and plays audio |
+| FR5 (OTA update) | Publish manifest; device downloads, verifies, applies update | QA Firmware | Device applies update, reboots, sends ack | Pass if checksum verified + ack sent |
+| FR6 (Telemetry errors) | Device sends error; backend ingests and displays | QA Backend | Error appears in telemetry logs | Pass if logs contain correct error entry |
+| FR7 (Parental dashboard telemetry) | Trigger usage; verify dashboard updated | QA App | Dashboard updates with usage stats | Pass if metrics match generated usage |
+| NFR1 (Latency) | Measure RTT and audio latency under load | QA Perf | RTT ≤250ms; audio latency ≤80ms | Pass if within thresholds |
+| NFR2 (Reliability) | Induce network flap; verify reconnect ≤2s | QA Perf | Device reconnects ≤2s | Pass if reconnect consistently ≤2s |
+| NFR3 (Security) | Attempt MITM; verify TLS/DTLS rejection | QA Security | MITM attempt fails; connection refused | Pass if all MITM blocked |
+| NFR4 (Scalability) | Simulate 10k clients; measure broker/ingress stability | QA Perf | System handles load; error rate ≤1% | Pass if load test stable under target |
+| NFR5 (Privacy) | Exceed retention period; verify auto-delete | QA Compliance | Data auto-deleted/anonymized | Pass if no retained data beyond limits |
+| NFR6 (Observability) | Check Grafana dashboards show metrics/traces | QA SRE | Dashboards display real-time data | Pass if metrics/traces visible and accurate |
+
+---
+
+## Notes
+- Each test case must include logs, screenshots, or metrics export as evidence.  
+- Failures require creating a Jira issue linked to the FR/NFR ID.  
