@@ -1,105 +1,265 @@
-### Product Requirements Document: Xiaozhi-ESP32-Server (Brownfield Project)
+# Brownfield PRD – Protocol Upgrade to MQTT + UDP + WebRTC (Zebbingo)
 
-### 1. Introduction
+**Owner:** @pm\
+**Stakeholders:** Firmware (ESP32), Cloud/Backend, Mobile App, QA, Security/Compliance\
+**Decision Date:** 2025-08-25\
+**Status:** Draft
 
-This document outlines the product requirements for the Xiaozhi-ESP32-Server, a project aimed at creating a "low-cost civilian Jarvis solution" with the capability for "intelligent linkage of peripheral hardware". This is a brownfield project that will build upon the existing codebase of the Xiaozhi-ESP32-Server.
+---
 
-**1.1 Project Goal**
+## 1) Background & Problem Statement
 
-The primary goal of this project is to develop an open-source, low-cost, and extensible personal AI assistant that can be deployed by individuals and developers. The project aims to replicate and build upon the functionalities of advanced AI assistants, making them accessible to a wider audience. The key objectives are:
+- Current transport: WebSocket between devices and server.
+- Issues observed: production reliability (intermittent disconnects behind NATs, poor backpressure handling), higher battery and CPU usage, and suboptimal latency for streaming audio/control.
+- Proposed change: move to **MQTT (signaling/control) + UDP (low-latency media/telemetry paths)**, and optionally support **WebRTC** for richer features and interoperability.
+- Target devices: Zebbingo speakers (ESP32-based) and future figurine/NFC accessories.
+- Compatibility: must operate with existing account/registration/OTA flows.
 
-* **To provide a low-cost alternative to commercial AI assistants.**
-* **To enable intelligent control and interaction with IoT devices.**
-* **To foster a community of developers who can contribute to the project and expand its capabilities.**
+### Success Criteria (high level)
 
-**1.2 Target Audience**
+- P95 command round-trip (cloud → device → ack) ≤ **250 ms** on Wi‑Fi.
+- P99 device reconnect time after network flap ≤ **2 s**.
+- Streaming voice packets one-way device→server median latency ≤ **80 ms**; loss ≤ **1%** without perceptible impact (with FEC/retransmit strategy).
+- 30‑day device online availability ≥ **99.5%**.
 
-The target audience for the Xiaozhi-ESP32-Server includes:
+---
 
-* **AI Enthusiasts and Hobbyists:** Individuals interested in exploring and experimenting with AI and IoT technologies.
-* **Developers:** Programmers who want to build custom AI applications and integrate them with hardware.
-* **DIY Community:** Makers and tinkerers who want to build their own smart home devices and personal assistants.
+## 2) Goals & Non‑Goals
 
-### 2. Product Features
+**Goals**
 
-The Xiaozhi-ESP32-Server will have the following core features:
+1. Robust pub/sub control plane with exactly‑once/at‑least‑once delivery semantics where required.
+2. Low-latency, low-overhead data plane for audio frames and sensor telemetry.
+3. Optional WebRTC support for direct app/browser/device integration.
+4. Clear migration path and rollback.
+5. Strong authN/authZ per device (topic ACLs), TLS/DTLS/SRTP, and audit logging.
+6. Maintain OTA and remote configuration capabilities.
 
-**2.1 Core Architecture**
+**Non‑Goals**
 
-* The system is built on a robust core architecture that utilizes WebSocket and HTTP servers to provide a comprehensive management console and a secure authentication system.
+- Replacing existing TTS/ASR providers.
+- Changing mobile app SDK network stack (beyond necessary topic subscriptions for parent dashboard).
+- Introducing cellular/LPWAN transport in this phase.
 
-**2.2 Voice Interaction**
+---
 
-* **Streaming ASR (Automatic Speech Recognition):** The system supports real-time, streaming speech recognition.
-* **Streaming TTS (Text-to-Speech):** It provides streaming text-to-speech synthesis for natural-sounding voice responses.
-* **VAD (Voice Activity Detection):** The system can detect voice activity to start and stop recording automatically.
-* **Multi-language Support:** It supports speech recognition and synthesis in multiple languages.
+## 3) Functional Requirements (FRs)
 
-**2.3 Voiceprint Recognition**
+1. **FR1:** Devices must connect securely to the broker via MQTT with mTLS.
+2. **FR2:** Devices must publish/subscribe to scoped topics (status, cmd, ack, cfg, ota, telemetry).
+3. **FR3:** Device must support DTLS-PSK handshake and audio streaming over UDP.
+4. **FR4:** WebRTC bridge must transcode Opus 16kHz→48kHz and forward audio to apps.
+5. **FR5:** OTA updates must be announced via retained `/ota` topics and executed with checksum validation.
+6. **FR6:** Device must send error reports on `/telemetry` with structured codes.
+7. **FR7:** Parental dashboard must be updated with telemetry via backend integration.
 
-* The server supports multi-user voiceprint registration, management, and recognition.
-* It can identify the speaker in real-time and provide personalized responses through the Large Language Model (LLM).
+---
 
-**2.4 Intelligent Conversation**
+## 4) Non‑Functional Requirements (NFRs)
 
-* The system supports a variety of LLMs to facilitate intelligent and natural conversations.
+1. **NFR1:** Latency — command RTT ≤250ms; audio one‑way ≤80ms.
+2. **NFR2:** Reliability — 99.5% availability; reconnect ≤2s.
+3. **NFR3:** Security — 100% of traffic encrypted with TLS/DTLS/SRTP.
+4. **NFR4:** Scalability — support 10k concurrent devices; 1k talkers.
+5. **NFR5:** Privacy — logs ≤90d; audio ≤14d opt‑in; PII scrubbing at ingest.
+6. **NFR6:** Observability — metrics, logs, and traces exposed for all services.
 
-**2.5 Visual Perception**
+---
 
-* The server is capable of multi-modal interaction through the support of multiple Vision Large Language Models (VLLMs).
+## 5) Epics & User Stories
 
-**2.6 Extensibility**
+### Epic 1: Control Plane (MQTT)
+- **Story 1.1:** As a device, I can establish a secure MQTT connection with mTLS so that I am uniquely identified.
+- **Story 1.2:** As a backend service, I can send commands on `/cmd` with QoS1 so that devices reliably execute instructions.
+- **Story 1.3:** As a device, I receive OTA manifest on `/ota` and update firmware with checksum verification.
 
-* **Plugin System:** The server has a plugin-based architecture that allows for easy extension of its functionalities, such as adding support for weather forecasts, news updates, music playback, and more.
-* **IoT Integration:** The system is designed to control and interact with various IoT devices.
+### Epic 2: Data Plane (UDP)
+- **Story 2.1:** As a device, I can initiate a DTLS-PSK session and stream Opus 16kHz audio frames.
+- **Story 2.2:** As the UDP ingress, I can reorder, jitter‑buffer, and decode packets so that ASR receives clean audio.
+- **Story 2.3:** As a device, I can handle network loss and reconnect within 2s.
 
-### 3. User Personas
+### Epic 3: WebRTC Bridge
+- **Story 3.1:** As a backend, I can transcode 16kHz Opus to 48kHz and forward via WebRTC for browser playback.
+- **Story 3.2:** As an app user, I can connect over WebRTC with ICE/STUN/TURN and monitor device audio.
 
-**3.1 Alex - The AI Enthusiast**
+### Epic 4: Security & Compliance
+- **Story 4.1:** As a device, I authenticate with a per-device cert so that only valid devices connect.
+- **Story 4.2:** As a compliance officer, I can enforce data retention limits (logs 90d, audio 14d) so regulations are met.
+- **Story 4.3:** As a parent, I can delete/export child data from dashboard to comply with GDPR/COPPA.
 
-* **Description:** Alex is a tech-savvy individual who is passionate about AI and home automation. He enjoys tinkering with new technologies and wants to build his own personal AI assistant.
-* **Goals:**
-    * To have a personal assistant that can control his smart home devices.
-    * To experiment with different AI models and customize the assistant's personality.
-    * To contribute to an open-source AI project.
+### Epic 5: Observability & Ops
+- **Story 5.1:** As an SRE, I can see MQTT sessions, UDP packet loss, and WebRTC stats on Grafana dashboards.
+- **Story 5.2:** As an SRE, I receive alerts when UDP loss >5% or ICE failures exceed 5%.
+- **Story 5.3:** As a developer, I can trace a request from device→ASR→LLM→TTS with OTel.
 
-**3.2. Sarah - The Developer**
+---
 
-* **Description:** Sarah is a software developer with experience in Python and web technologies. She is interested in building custom AI applications for her clients.
-* **Goals:**
-    * To use the Xiaozhi-ESP32-Server as a platform for developing custom AI solutions.
-    * To integrate the server with other systems and services.
-    * To contribute to the development of the core functionalities of the server.
+## 6) Architecture Overview
 
-### 4. Technical Requirements
+### 3.1 Broker Choice
 
-**4.1 Technology Stack**
+- **Managed Broker (Recommended):** **AWS IoT Core** for production.
+  - **Why:** 99.9%+ SLA, elastic scaling, device identity/IAM, fine‑grained policies, device shadow, rules engine, multi‑AZ out of the box.
+  - **Trade‑offs:** Per‑message billing; vendor lock‑in (mitigated by keeping topic schema portable and using an adapter service).
+- **Staging/CI:** **EMQX** (self‑hosted, small 2–3 node cluster) with Prometheus/Grafana + Alertmanager.
+- **Local Dev:** **Mosquitto** (single node), no auth locally; use the same topic schema.
 
-* **Backend:** Python 3.10, Java 21, Spring Boot
-* **Frontend:** Vue.js, Node.js 18
-* **Database:** MySQL, Redis
-* **Deployment:** Docker
+**Decision:** **AWS IoT Core for production**, **EMQX** cluster for staging, **Mosquitto** for local dev.
 
-**4.2 System Requirements**
+**Topic & Policy Model (portable across brokers)**
 
-* The server should be deployable on a low-cost hardware platform, such as a Raspberry Pi or a small server.
-* The system should be designed to be scalable and support a growing number of users and devices.
+```
+<env>/<tenant>/<deviceId>/status
+<env>/<tenant>/<deviceId>/cmd
+<env>/<tenant>/<deviceId>/ack/<cmdId>
+<env>/<tenant>/<deviceId>/cfg
+<env>/<tenant>/<deviceId>/ota
+<env>/<tenant>/<deviceId>/telemetry
+```
 
-### 5. System Architecture
+### 3.2 Control Plane (MQTT/TCP+TLS)
 
-The Xiaozhi-ESP32-Server consists of the following main components:
+- **Broker options:** AWS IoT Core (prod), EMQX (staging), Mosquitto (local).
+- **Client library (device):** ESP‑IDF `esp-mqtt` with TLS 1.2+, mTLS.
+- **QoS:** QoS1 for commands/config/OTA; QoS0 for ephemeral presence pings.
+- **Retained messages:** last-will status and bootstrap configs (device shadow), with expirations.
 
-* **xiaozhi-server:** The core Python server that handles WebSocket connections, AI processing (ASR, TTS, LLM), and communication with IoT devices.
-* **manager-web:** A web-based management interface built with Vue.js that allows users to configure the system, manage users and devices, and monitor the server's status.
-* **manager-api:** A Java-based REST API that provides the backend services for the `manager-web` interface.
-* **ESP32 Client:** The firmware for the ESP32 devices that enables them to connect to the server and interact with the AI assistant.
+### 3.3 Data Plane (UDP)
 
-### 6. Future Enhancements
+- **Use cases:** half‑duplex voice frames, wakeword/VAD events, real‑time metrics.
+- **Transport:** UDP sockets from device to ingress gateway; DTLS-PSK for encryption.
+- **Reliability:** sequence numbers + jitter buffer + optional FEC.
+- **Backpressure:** gateway drops late packets; device adapts bitrate/frame size.
 
-Based on the project's open letter to contributors and the issue templates, the following are potential areas for future development:
+### 3.4 Data Plane (WebRTC – Optional)
 
-* **Improved AI Models:** Integration of more advanced and efficient ASR, TTS, and LLM models.
-* **Expanded Plugin Library:** Development of a wider range of plugins to support more services and devices.
-* **Mobile Application:** Creation of a mobile application for interacting with the AI assistant.
-* **Enhanced Security:** Implementation of more robust security features to protect user data and privacy.
-* **Community-driven Development:** Fostering an active community of developers to contribute to the project and drive its future direction.
+- **Use cases:** richer interop with browsers/mobile apps, built-in NAT traversal.
+- **Transport:** WebRTC peer connection (DTLS-SRTP).
+- **Features:** adaptive jitter buffering, NACK/FEC, congestion control, ICE/STUN/TURN.
+- **Gateway:** optional WebRTC bridge that converts ESP32 UDP packets to WebRTC RTP for app consumption (e.g., Pion or aiortc).
+
+### 3.5 UDP Packet Format (v1)
+
+```
+| VER | TYPE | FLAGS | SEQ | TS | LEN | PAYLOAD |
+VER=1; TYPE: 0=audio,1=vad,2=metric; TS=ms; LEN=bytes
+```
+
+- Codec: Opus 16 kHz mono, 20 ms frame.
+- Encrypted with DTLS (PSK or cert).
+
+**Sequencing & Jitter Buffer Rules**
+
+- Drop late frames where `now - TS > 200 ms`.
+- Reorder up to 50 ms window using `SEQ`.
+- Conceal up to 2 consecutive losses; enable XOR‑FEC every 5 frames (optional).
+
+**NAT Keepalive**
+
+- Send 1‑byte keepalive (TYPE=2, LEN=0) every 25s when idle.
+
+---
+
+## 4) Security Mode Decision (ESP32)
+
+### Chosen Approach (v1)
+
+- **MQTT:** x.509 **mTLS** using per‑device certificates issued from our CA.
+- **UDP:** **DTLS‑PSK** using ephemeral keys, rotated periodically.
+- **WebRTC:** **DTLS-SRTP** with ICE/STUN/TURN.
+
+**Why:** Strong identity and authorization on the control plane; lightweight UDP path for constrained devices; optional WebRTC path for rich clients and direct interoperability.
+
+### PSK Lifecycle (UDP)
+
+- Provision via MQTT `/cfg`, rotate every 7 days, revoke via new epoch.
+- Store securely in NVS; drop expired PSKs.
+
+### Certificate Profile (MQTT)
+
+- RSA‑2048 or EC‑P256 device key; validity ≤ 3 years.
+- CN/SubjectAltName = `thing-<deviceId>`; attach broker policy scoped to `<deviceId>`.
+
+---
+
+## 5) Detailed Requirements
+
+- **Device bootstrap:** obtain broker endpoint, client cert, and UDP/WebRTC params.
+- **Presence & health:** LWT retained message; heartbeat.
+- **Command handling:** JSON commands via MQTT `/cmd` with acks.
+- **Config management:** retained `/cfg` includes `udp_psk`, `webrtc_enabled`, `turn_servers`.
+- **OTA:** announced via `/ota` with signed manifest URL.
+- **Audio streaming:** UDP packets or WebRTC RTP.
+- **Error reporting:** telemetry topic with structured errors.
+
+---
+
+## 6) Migration Plan
+
+1. Implement firmware with MQTT/UDP (DTLS‑PSK) as the baseline.
+2. Optionally add WebRTC bridge support for app interoperability.
+3. Rollout in cohorts 1%→10%→25%→50%→100% with SLO gates.
+4. Rollback via `/cfg` flag if severe issues.
+
+---
+
+## 7) Risks & Mitigations
+
+- **NAT traversal/UDP blocking:** fallback to WebRTC (with TURN) or TCP over MQTT.
+- **Packet loss under Wi‑Fi interference:** Opus FEC, adaptive jitter buffer.
+- **ESP32 resource limits:** WebRTC only supported via gateway; not on device.
+- **Security key leakage:** rotate device creds; remote wipe.
+
+---
+
+## 8) Test Plan
+
+- **Unit:** topic ACLs, JSON schema validation, DTLS handshake, jitter buffer.
+- **Integration:** device ↔ broker ↔ gateway (MQTT+UDP and WebRTC bridge).
+- **Load:** 10k MQTT clients, 1k talkers.
+- **Chaos:** Wi‑Fi loss, packet loss, broker failover.
+- **Security:** mTLS negative tests, DTLS invalid PSK, WebRTC ICE edge cases.
+
+---
+
+## 9) Acceptance Criteria
+
+- Success criteria in §1 met.
+- OTA and remote commands work over MQTT.
+- Audio streaming verified via UDP and WebRTC bridge.
+- Audit logs complete.
+
+---
+
+## 10) Milestones & Ownership
+
+- **M1 – Broker & UDP ingress ready (1.5 weeks)** Cloud/Backend
+- **M2 – ESP32 client (MQTT + UDP + DTLS) (2 weeks)** Firmware
+- **M3 – WebRTC bridge service (1 week)** Cloud/Backend
+- **M4 – End‑to‑end staging tests (1 week)** QA
+- **M5 – Canary rollout (2 weeks)** PM/DevOps
+
+---
+
+## 11) Monitoring & Observability
+
+- **MQTT broker metrics**.
+- **UDP ingress metrics** (packet rate, jitter).
+- **WebRTC stats** (RTT, jitter, bitrate, loss).
+- **Device telemetry dashboards**.
+
+---
+
+## 12) Resolved Decisions
+
+- **Opus sampling:** Keep device encode at 16 kHz for CPU/battery efficiency; transcode to 48 kHz at WebRTC bridge for browser/app compatibility.
+- **TURN deployment:** Start with single‑region coturn (APAC‑Singapore). Expand to multi‑region (US‑West, EU‑Central) once relay ratio >25% or ICE RTT >800 ms median.
+- **Privacy defaults:** Recording off by default. Audio artifacts retained ≤14 days (opt‑in); logs/metrics ≤90 days; PII scrubbing at ingest; parental dashboard supports export/delete.
+- **Broker choice:** AWS IoT Core for production; EMQX for staging; Mosquitto for local dev.
+
+---
+
+## 13) Appendix
+
+- **Color/Brand:** Zebbingo Blue = Pantone 2905C.
+- **Future:** BLE gateway mode; multicast LAN discovery; potential move to ESP32‑S3 or Linux SoC for native WebRTC.
