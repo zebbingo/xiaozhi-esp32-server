@@ -231,6 +231,9 @@ class VisionHandler(BaseHandler):
                 "success": True,
                 "action": Action.RESPONSE.name,
                 "response": result,
+                # 识别命中的规范手办名（带下划线，如 julius_caesar）；未命中为 None。
+                # 供工位触发端点(/mcp/vision/trigger)提取规范名用，语音流程忽略此字段。
+                "figurine": figurine_name,
             }
 
             response = web.Response(

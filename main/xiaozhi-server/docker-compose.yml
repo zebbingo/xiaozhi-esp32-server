@@ -32,3 +32,9 @@ services:
       - ./models/SenseVoiceSmall/model.pt:/opt/xiaozhi-esp32-server/models/SenseVoiceSmall/model.pt
       # 手办识别接线补丁：用 fork 里改过的 vision_handler.py 覆盖镜像内的原文件
       - ./core/api/vision_handler.py:/opt/xiaozhi-esp32-server/core/api/vision_handler.py
+      # 工位触发端点：放卡后让设备拍照识别（配合 tools/figurine-capture-station）
+      - ./core/api/trigger_handler.py:/opt/xiaozhi-esp32-server/core/api/trigger_handler.py
+      - ./core/http_server.py:/opt/xiaozhi-esp32-server/core/http_server.py
+      - ./app.py:/opt/xiaozhi-esp32-server/app.py
+      # 给 WebSocketServer 加活动连接注册表(基于镜像版打的最小补丁)，供触发端点按device_id反查
+      - ./core/websocket_server.py:/opt/xiaozhi-esp32-server/core/websocket_server.py
