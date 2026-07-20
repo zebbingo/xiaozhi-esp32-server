@@ -12,6 +12,9 @@ services:
       - TZ=Asia/Shanghai
       # 手办识别微服务地址（tools/figurine-recognizer 跑在宿主机 8004 端口）
       - FIGURINE_RECOGNIZER_URL=http://host.docker.internal:8004/recognize
+      # 手办 NFC 写卡服务地址（tools/figurine-nfc-writer 跑在宿主机 8005 端口，主机原生运行以访问USB串口）
+      # 留空则识别命中后不写卡；填上则识别命中自动向公仔卡写角色名
+      - FIGURINE_NFC_WRITER_URL=http://host.docker.internal:8005/write
       # 采集设备实拍照片到 data/vision_captures/（采集完设备参考图后可关掉）
       - SAVE_VISION_CAPTURES=1
     extra_hosts:

@@ -21,6 +21,10 @@ MAX_FILE_SIZE = 5 * 1024 * 1024
 # 手办识别微服务地址（tools/figurine-recognizer），留空则跳过识别直接走VLLM
 FIGURINE_RECOGNIZER_URL = os.getenv("FIGURINE_RECOGNIZER_URL", "").strip()
 
+# 手办 NFC 写卡服务地址（tools/figurine-nfc-writer，主机原生运行）。
+# 留空则不写卡。容器内访问主机用 http://host.docker.internal:8005/write
+FIGURINE_NFC_WRITER_URL = os.getenv("FIGURINE_NFC_WRITER_URL", "").strip()
+
 # 调试用：把设备实拍的照片存到 data/vision_captures/，用于采集设备参考图
 SAVE_VISION_CAPTURES = os.getenv("SAVE_VISION_CAPTURES", "").strip() == "1"
 VISION_CAPTURE_DIR = "/opt/xiaozhi-esp32-server/data/vision_captures"
@@ -68,6 +72,30 @@ async def _recognize_figurine(logger, image_data: bytes) -> Optional[str]:
         # 识别服务不可用不应影响正常视觉问答，降级为不注入
         logger.bind(tag=TAG).warning(f"调用手办识别服务失败，跳过：{e}")
         return None
+
+
+async def _write_figurine_nfc(logger, name: str) -> None:
+    """识别命中后，通知主机侧 NFC 写卡服务向公仔卡写入角色名。
+    写卡失败不应影响语音播报，只记日志（降级）。"""
+    if not FIGURINE_NFC_WRITER_URL:
+        return
+    try:
+        timeout = aiohttp.ClientTimeout(total=10)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(FIGURINE_NFC_WRITER_URL, json={"name": name}) as resp:
+                result = await resp.json()
+        if result.get("ok"):
+            logger.bind(tag=TAG).info(
+                f"NFC 写卡成功：{name} -> 角色名 {result.get('role')} "
+                f"(UID {result.get('uid')}, 块 {result.get('written_blocks')})"
+            )
+        else:
+            logger.bind(tag=TAG).warning(
+                f"NFC 写卡未成功：{name}，原因：{result.get('error')}"
+            )
+    except Exception as e:
+        # 写卡服务不可用（如没插读卡器/服务没起）不应影响语音，降级
+        logger.bind(tag=TAG).warning(f"调用 NFC 写卡服务失败，跳过：{e}")
 
 
 class VisionHandler(BaseHandler):
@@ -159,6 +187,8 @@ class VisionHandler(BaseHandler):
             if figurine_name:
                 # 识别命中：直接返回简短结果，不再调用 VLLM 长篇描述
                 self.logger.bind(tag=TAG).info(f"手办识别命中：{figurine_name}")
+                # 识别命中后触发向公仔 NFC 卡写入角色名（失败不阻塞语音播报）
+                await _write_figurine_nfc(self.logger, figurine_name)
                 # 播报名用空格替换下划线（如 julius_caesar → julius caesar）
                 display_name = figurine_name.replace("_", " ")
                 result = f"这是{display_name}"
