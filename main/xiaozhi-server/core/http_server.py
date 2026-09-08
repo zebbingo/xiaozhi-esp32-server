@@ -3,16 +3,19 @@ from aiohttp import web
 from config.logger import setup_logging
 from core.api.ota_handler import OTAHandler
 from core.api.vision_handler import VisionHandler
+from core.api.trigger_handler import TriggerHandler
 
 TAG = __name__
 
 
 class SimpleHttpServer:
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, ws_server=None):
         self.config = config
         self.logger = setup_logging()
         self.ota_handler = OTAHandler(config)
         self.vision_handler = VisionHandler(config)
+        # 工位触发端点需要按 device_id 找设备连接，故需 WebSocketServer 引用
+        self.trigger_handler = TriggerHandler(config, ws_server)
 
     def _get_websocket_url(self, local_ip: str, port: int) -> str:
         """获取websocket地址
@@ -57,6 +60,9 @@ class SimpleHttpServer:
                     web.get("/mcp/vision/explain", self.vision_handler.handle_get),
                     web.post("/mcp/vision/explain", self.vision_handler.handle_post),
                     web.options("/mcp/vision/explain", self.vision_handler.handle_post),
+                    # 工位触发端点：放卡后让指定设备拍照识别并返回规范手办名
+                    web.post("/mcp/vision/trigger", self.trigger_handler.handle_post),
+                    web.options("/mcp/vision/trigger", self.trigger_handler.handle_options),
                 ]
             )
 

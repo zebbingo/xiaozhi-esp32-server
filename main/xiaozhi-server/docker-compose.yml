@@ -10,6 +10,16 @@ services:
       - seccomp:unconfined
     environment:
       - TZ=Asia/Shanghai
+      # 手办识别微服务地址（tools/figurine-recognizer 跑在宿主机 8004 端口）
+      - FIGURINE_RECOGNIZER_URL=http://host.docker.internal:8004/recognize
+      # 手办 NFC 写卡服务地址（tools/figurine-nfc-writer 跑在宿主机 8005 端口，主机原生运行以访问USB串口）
+      # 留空则识别命中后不写卡；填上则识别命中自动向公仔卡写角色名
+      - FIGURINE_NFC_WRITER_URL=http://host.docker.internal:8005/write
+      # 采集设备实拍照片到 data/vision_captures/（采集完设备参考图后可关掉）
+      - SAVE_VISION_CAPTURES=1
+    extra_hosts:
+      # 让容器能通过 host.docker.internal 访问宿主机（Linux 上需要，Docker Desktop 自带）
+      - "host.docker.internal:host-gateway"
     ports:
       # ws服务端
       - "8000:8000"
@@ -20,3 +30,11 @@ services:
       - ./data:/opt/xiaozhi-esp32-server/data
       # 模型文件挂接，很重要
       - ./models/SenseVoiceSmall/model.pt:/opt/xiaozhi-esp32-server/models/SenseVoiceSmall/model.pt
+      # 手办识别接线补丁：用 fork 里改过的 vision_handler.py 覆盖镜像内的原文件
+      - ./core/api/vision_handler.py:/opt/xiaozhi-esp32-server/core/api/vision_handler.py
+      # 工位触发端点：放卡后让设备拍照识别（配合 tools/figurine-capture-station）
+      - ./core/api/trigger_handler.py:/opt/xiaozhi-esp32-server/core/api/trigger_handler.py
+      - ./core/http_server.py:/opt/xiaozhi-esp32-server/core/http_server.py
+      - ./app.py:/opt/xiaozhi-esp32-server/app.py
+      # 给 WebSocketServer 加活动连接注册表(基于镜像版打的最小补丁)，供触发端点按device_id反查
+      - ./core/websocket_server.py:/opt/xiaozhi-esp32-server/core/websocket_server.py
