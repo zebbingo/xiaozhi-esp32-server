@@ -1,3 +1,5 @@
+# Public callers cannot invoke a private reusable workflow. Download only the
+# reviewed parent main checker; never checkout or execute PR code.
 name: PR Issue Contract
 on:
   pull_request:
@@ -8,10 +10,22 @@ permissions:
   pull-requests: read
 jobs:
   issue-contract:
-    permissions:
-      contents: read
-      issues: read
-      pull-requests: read
-    uses: zebbingo/zebbingo-ai-agent/.github/workflows/pr-issue-contract-base.yml@main
-    secrets:
-      PARENT_REPO_TOKEN: ${{ secrets.PARENT_REPO_TOKEN }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # No PR checkout: neither PR code nor metadata is evaluated as a command.
+      # The shared checker is always read from reviewed parent main, never PR head.
+      - name: Validate live Issue ownership
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_ISSUE_CROSS_REPO_TOKEN: ${{ secrets.PARENT_REPO_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || { echo 'Missing PR event'; exit 1; }
+          CHECKER=$(mktemp "$RUNNER_TEMP/pr-issue-contract.XXXXXX.py")
+          trap 'rm -f "$CHECKER"' EXIT
+          GH_TOKEN="${PR_ISSUE_CROSS_REPO_TOKEN:-$GH_TOKEN}" gh api 'repos/zebbingo/zebbingo-ai-agent/contents/scripts/check/pr_issue_contract.py?ref=main' \
+            -H 'Accept: application/vnd.github.raw+json' > "$CHECKER"
+          python3 -I "$CHECKER" --repo "$GITHUB_REPOSITORY" --pr "$PR_NUMBER"
