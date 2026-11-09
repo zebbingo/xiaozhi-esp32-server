@@ -1,0 +1,17 @@
+name: PR Issue Contract
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+jobs:
+  issue-contract:
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    uses: zebbingo/zebbingo-ai-agent/.github/workflows/pr-issue-contract-base.yml@main
+    secrets:
+      PARENT_REPO_TOKEN: ${{ secrets.PARENT_REPO_TOKEN }}

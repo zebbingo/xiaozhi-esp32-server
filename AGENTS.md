@@ -9,3 +9,5 @@
 - 审查还需确认“本次解决”确实属于该 Issue，以及是否漏报补充关系；机械校验不能证明这些语义。多个 PR 可以对应一个 Issue；仅全部验收完成时才使用关闭关键字或关闭 Issue。
 
 接入与验收范围：[母仓 Issue #897](https://github.com/zebbingo/zebbingo-ai-agent/issues/897)。创建、CI、合并的当前证据以该 Issue 及关联 PR 为准。
+
+本仓尚无 `just pr-*` 便利入口。贡献者在本仓目录执行已更新母仓的可信入口：`ZEBBINGO_AGENT_ID=codex uv run --no-project python <母仓绝对路径>/scripts/check/pr_policy_main.py check`；创建使用同入口 `create --kind draft --title <标题> --body-file <UTF-8正文文件>`；经当前 head 审查和 CI 后，以 `PR_MERGE_AUTHORIZED=1` 调用 `merge <PR编号>`。入口按本仓 origin 定位，不使用 fork 上游。母仓工具只用于贡献流程，应用运行仍保持独立。生产合并及既有人工门槛优先。
